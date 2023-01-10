@@ -1,0 +1,91 @@
+tvoc_feed = aio.feeds('tvoc')
+eco2_feed = aio.feeds('eco2')
+door_feed = aio.feeds('front-door')
+motion_feed = aio.feeds('motion-detector')
+alarm_feed = aio.feeds('home-alarm')
+outdoor_lights_feed = aio.feeds('outdoor-lights')
+indoor_lights_Feed = aio.feeds('indoor-lights')
+picam_feed = aio.feeds('picam')
+# set up PiCamera
+camera = picamera.PiCamera()
+camera.resolution = (320, 240)
+
+# set up door sensor
+door_sensor = digitalio.DigitalInOut(D5)
+door_sensor.direction = digitalio.Direction.INPUT
+
+# set up motion sensor
+pir_sensor = digitalio.DigitalInOut(D6)
+pir_sensor.direction = digitalio.Direction.INPUT
+prev_pir_value = pir_sensor.value
+is_pir_activated = False
+
+# set up sgp30
+i2c_bus = I2C(SCL, SDA, frequency=100000)
+sgp30 = adafruit_sgp30.Adafruit_SGP30(i2c_bus)
+
+# set up the neopixel strip
+pixels = neopixel.NeoPixel(D18, NUM_PIXELS_STRIP)
+pixels.fill((0, 0, 0))
+pixels.show()
+  co2eq, tvoc = sgp30.iaq_measure()
+  print("CO2eq = %d ppm \t TVOC = %d ppb" % (co2eq, tvoc))
+  # send SGP30 values to Adafruit IO
+  aio.send(eco2_feed.key, co2eq)
+  aio.send(tvoc_feed.key, tvoc)
+  time.sleep(0.5)
+  # read/send door sensor
+  if door_sensor.value:
+    print('Door Open!')
+    # change indicator block to red
+    aio.send(door_feed.key, 3)
+  else:
+    print('Door Closed.')
+    # reset indicator block to green
+    aio.send(door_feed.key, 0)
+  # read/send motion sensor
+  if door_sensor.value:
+    if not prev_pir_value:
+      print('Motion detected!')
+      is_pir_activated = True
+      # change indicator block to red
+      aio.send(motion_feed.key, 3)
+  else:
+    if prev_pir_value:
+      print('Motion ended.')Adafruit IO Home: Security
+CO2eq = 400 ppm 	 TVOC = 0 ppb
+Door Closed.
+Motion detected!
+snap!
+sent to AIO!
+      is_pir_activated = False
+      # reset indicator block to green
+      aio.send(motion_feed.key, 0)
+  camera.capture('picam_img.jpg')
+  print('snap!')
+  with open("picam_img.jpg", "rb") as imageFile:
+    str = base64.b64encode(imageFile.read())
+    try:
+      aio.send('picam', str)
+    except:
+      print('Sending camera image failed...')
+  # Alarm System 
+  is_alarm = aio.receive(alarm_feed.key)
+  if (is_alarm.value == "ON"):
+    # sample the current hour
+    cur_time = time.localtime()
+    cur_hour = time.tm_hour
+    if (cur_hour > ALARM_HOUR and is_pir_activated == True):
+      alarm_trigger()
+# Set to the hour at which to arm the alarm system, 24hr time
+ALARM_HOUR = 16
+
+# Set to the interval between loop execution, in seconds
+LOOP_INTERVAL = 2
+Adafruit IO Home: Security
+CO2eq = 400 ppm 	 TVOC = 0 ppb
+Door Closed.
+Motion detected!
+snap!
+sent to AIO!
+
